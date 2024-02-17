@@ -31,7 +31,7 @@ const uint8_t SCTL = 2;
 int8_t select_s_pin(void);
 char read_hex(void); 
 char get_char(void);
-const uint8_t TOTAL_IC = 4;//!< Number of ICs in the daisy chain
+const uint8_t TOTAL_IC = 3;//!< Number of ICs in the daisy chain
 const uint8_t ADC_OPT = ADC_OPT_DISABLED; //!< ADC Mode option bit
 const uint8_t ADC_CONVERSION_MODE =MD_7KHZ_3KHZ; //!< ADC Mode
 const uint8_t ADC_DCP = DCP_DISABLED; //!< Discharge Permitted 
@@ -46,7 +46,7 @@ const uint16_t MEASUREMENT_LOOP_TIME = 500; //!< Loop Time in milliseconds(ms)
 //Under Voltage and Over Voltage Thresholds
 const uint16_t OV_THRESHOLD = 42000; //!< Over voltage threshold ADC Code. LSB = 0.0001 ---(4.2V)
 const uint16_t UV_THRESHOLD = 25000; //!< Under voltage threshold ADC Code. LSB = 0.0001 ---(2.5V)
-
+const uint16_t Open_THRESHOLD = 05000;//!< open zero voltage threshold ADC Code. LSB = 0.0001 ---(0.5V)
 //Loop Measurement Setup. These Variables are ENABLED or DISABLED. Remember ALL CAPS
 const uint8_t WRITE_CONFIG = DISABLED;  //!< This is to ENABLED or DISABLED writing into to configuration registers in a continuous loop
 const uint8_t READ_CONFIG = DISABLED; //!< This is to ENABLED or DISABLED reading the configuration registers in a continuous loop
@@ -61,6 +61,7 @@ bool GPIOBITS_A[5] = {false,false,true,true,true}; //!< GPIO Pin Control // Gpio
 bool GPIOBITS_B[4] = {false,false,false,false}; //!< GPIO Pin Control // Gpio 6,7,8,9
 uint16_t UV=UV_THRESHOLD; //!< Under voltage Comparison Voltage
 uint16_t OV=OV_THRESHOLD; //!< Over voltage Comparison Voltage
+uint16_t ZeroV = Open_THRESHOLD;
 bool DCCBITS_A[12] = {false,false,false,false,false,false,false,false,false,false,false,false}; //!< Discharge cell switch //Dcc 1,2,3,4,5,6,7,8,9,10,11,12
 bool DCCBITS_B[7]= {false,false,false,false,false,false,false}; //!< Discharge cell switch //Dcc 0,13,14,15
 bool DCTOBITS[4] = {true,false,true,false}; //!< Discharge time value //Dcto 0,1,2,3  // Programed for 4 min 
@@ -75,7 +76,27 @@ const int OUTPUT_PIN = 17;
 
 void canSniff(const CAN_message_t &msg) {
   value3 = msg.id;
-  if (msg.id == 0x1838F380 || msg.id == 0x1838F381) {
+  if (msg.id == 0x1838F380 ) {
+    Serial.print("CAN ID:  ");
+    Serial.print(msg.id, HEX);
+    Serial.print(" ");
+    for (int k = 0; k < 8; k++) {
+      dataTherm[k] = (int8_t)msg.buf[k];
+      Serial.print(dataTherm[k]);
+      Serial.print(" ");
+    }
+    Serial.println();
+    if (dataTherm[2] > 55) {
+      if (!isHigh) {
+        highStartTime = millis();
+      } else {
+        if (millis() - highStartTime > 1000) {
+          digitalWrite(OUTPUT_PIN, HIGH);
+        }
+      }
+    }
+  }
+    if (msg.id == 0x1838F381) {
     Serial.print("CAN ID:  ");
     Serial.print(msg.id, HEX);
     Serial.print(" ");
@@ -116,7 +137,7 @@ void print_cells(uint8_t datalog_en) {
       Serial.print(", ");
       for (int i = 0; i < BMS_IC[0].ic_reg.cell_channels; i++)
       {
-        Serial.print("IC");
+        Serial.print("C");
         Serial.print(i+1);
         Serial.print(":");
         Serial.print(BMS_IC[current_ic].cells.c_codes[i] * 0.0001, 4);
@@ -138,7 +159,7 @@ void print_SUM_OF_CELLS(uint8_t datalog_en) {
         Serial.print(F(" IC "));
         Serial.print(current_ic + 1);
         Serial.print(F(" Total Voltage in Each Segment :"));
-        float ic_summed_voltage = BMS_IC[current_ic].stat.stat_codes[0] * 0.0001 * 30;
+        float ic_summed_voltage = BMS_IC[current_ic].stat.stat_codes[0] * 0.001;
         Serial.print(ic_summed_voltage, 2);
         Serial.print(F(","));
         
@@ -157,10 +178,12 @@ void check_error(int error) {
 }
 
 
+
 void latch_pcb(uint8_t datalog_en) {
   bool threscrossed = false;
   static bool flag = false;
   static unsigned long timeitcrossedthres = 0;
+  
 
   for (int current_ic = 0; current_ic < TOTAL_IC; current_ic++) {
     for (int i = 0; i < BMS_IC[0].ic_reg.cell_channels; i++) {
@@ -177,6 +200,13 @@ void latch_pcb(uint8_t datalog_en) {
       if (cell_voltage > OV_THRESHOLD) {
         threscrossed = true;
         Serial.print("Over voltage detected in IC ");
+        Serial.print(current_ic + 1);
+        Serial.print(", Cell ");
+        Serial.println(i + 1);
+      }
+      if (cell_voltage <=  Open_THRESHOLD) {
+        threscrossed = true;
+        Serial.print("Zero voltage detected in IC ");
         Serial.print(current_ic + 1);
         Serial.print(", Cell ");
         Serial.println(i + 1);
@@ -225,22 +255,28 @@ void setup() {
 
 
 void loop() {
-  
-  int8_t error = 0;
   can1.events();
+  static int loopCounter = 1;
   static uint32_t timeout = millis();
+  int8_t error = 0;
   wakeup_sleep(TOTAL_IC);
   error = LTC6813_rdcv(SEL_ALL_REG, TOTAL_IC, BMS_IC);
   LTC6813_wrcfg(TOTAL_IC,BMS_IC); // Write into Configuration Register
   LTC6813_wrcfgb(TOTAL_IC,BMS_IC); // Write into Configuration Register B
   LTC6813_adcv(ADC_CONVERSION_MODE,ADC_DCP,CELL_CH_TO_CONVERT);
   check_error(error); 
-  print_cells(DATALOG_DISABLED);
+  if (loopCounter % 3 == 0) { 
+      print_cells(DATALOG_DISABLED);
+    }
   wakeup_idle(TOTAL_IC);
   LTC6813_adstat(ADC_CONVERSION_MODE, STAT_CH_TO_CONVERT);
   error = LTC6813_rdstat(SEL_REG_A,TOTAL_IC,BMS_IC); // Set to read back stat register A
   check_error(error);
-  print_SUM_OF_CELLS(DATALOG_DISABLED);
+  if (loopCounter % 3 == 0) { 
+      print_SUM_OF_CELLS(DATALOG_DISABLED);
+    }
+  
+  loopCounter++;
   if (millis() - timeout > 2000) {
     sendtherm();
     timeout = millis();
