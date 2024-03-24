@@ -180,12 +180,12 @@ void setup() {
 void loop() {
   int8_t error = 0;
   wakeup_sleep(TOTAL_IC);
-  error = LTC6813_rdcv(SEL_ALL_REG, TOTAL_IC, BMS_IC);
   LTC6813_wrcfg(TOTAL_IC,BMS_IC); // Write into Configuration Register
   LTC6813_wrcfgb(TOTAL_IC,BMS_IC); // Write into Configuration Register B
   LTC6813_adcv(ADC_CONVERSION_MODE,ADC_DCP,CELL_CH_TO_CONVERT);
+  error = LTC6813_rdcv(SEL_ALL_REG, TOTAL_IC, BMS_IC);
   check_error(error); 
-   wakeup_idle(TOTAL_IC);
+  wakeup_idle(TOTAL_IC);
   print_cells(DATALOG_DISABLED);
   print_SUM_OF_CELLS(DATALOG_DISABLED);
 }
