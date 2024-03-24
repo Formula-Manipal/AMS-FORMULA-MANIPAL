@@ -49,8 +49,8 @@ const uint8_t WRITE_CONFIG = DISABLED;  //!< This is to ENABLED or DISABLED writ
 const uint8_t READ_CONFIG = DISABLED; //!< This is to ENABLED or DISABLED reading the configuration registers in a continuous loop
 const uint8_t MEASURE_CELL = ENABLED; //!< This is to ENABLED or DISABLED measuring the cell voltages in a continuous loop
 const uint8_t MEASURE_AUX = DISABLED; //!< This is to ENABLED or DISABLED reading the auxiliary registers in a continuous loop
-const uint8_t MEASURE_STAT = DISABLED; //!< This is to ENABLED or DISABLED reading the status registers in a continuous loop
-const uint8_t PRINT_PEC = DISABLED; //!< This is to ENABLED or DISABLED printing the PEC Error Count in a continuous loop
+const uint8_t MEASURE_STAT = ENABLED; //!< This is to ENABLED or DISABLED reading the status registers in a continuous loop
+const uint8_t PRINT_PEC = ENABLED; //!< This is to ENABLED or DISABLED printing the PEC Error Count in a continuous loop
 cell_asic BMS_IC[TOTAL_IC]; //!< Global Battery Variable
 bool REFON = true; //!< Reference Powered Up Bit
 bool ADCOPT = false; //!< ADC Mode option bit
