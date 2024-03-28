@@ -99,21 +99,20 @@ void print_cells(uint8_t datalog_en) {
 
 
 void print_SUM_OF_CELLS(uint8_t datalog_en) {
-  for (int current_ic = 0; current_ic < TOTAL_IC; current_ic++) {
-    if (datalog_en == 0) {
-      Serial.print(F(" IC "));
-      Serial.print(current_ic + 1, DEC);
-      Serial.print(F(" Total Voltage in Each Segment :"));
-      for (int i = 0; i < BMS_IC[0].ic_reg.cell_channels; i++) {   
-        ic_summed_voltage += BMS_IC[current_ic].cells.c_codes[i] * 0.0001;
-      }
-      Serial.print(ic_summed_voltage, 4);
-      Serial.print(F(","));
-      total_voltage += ic_summed_voltage;
-    }
+  float total_voltage = 0.0;
+  for (int current_ic =0 ; current_ic < TOTAL_IC; current_ic++)
+  {
+    Serial.print(F(" IC "));
+    Serial.print(current_ic+1,DEC);
+    Serial.print(F(" Voltage per Segment:"));
+    float ic_summed_voltage = (BMS_IC[current_ic].stat.stat_codes[0]*0.0001*30,4);
+    Serial.print(ic_summed_voltage);
+    Serial.print(F(","));
+    total_voltage += ic_summed_voltage;
   }
-Serial.println("\nTotal voltage of the TSAC: ");
-Serial.println(total_voltage, 3);
+  serial.println("\nTotal voltage of the TSAC: ")
+  Serial.println(total_voltage, 3);
+  Serial.println("\n");
 }
 
 void latch_pcb(uint8_t datalog_en) {
@@ -180,14 +179,12 @@ void setup() {
 void loop() {
   int8_t error = 0;
   wakeup_sleep(TOTAL_IC);
+  LTC6813_adcvsc(ADC_CONVERSION_MODE,ADC_DCP);
+  wakeup_idle(TOTAL_IC);
   error = LTC6813_rdcv(SEL_ALL_REG, TOTAL_IC, BMS_IC);
-  LTC6813_wrcfg(TOTAL_IC,BMS_IC); // Write into Configuration Register
-  LTC6813_wrcfgb(TOTAL_IC,BMS_IC); // Write into Configuration Register B
-  LTC6813_adcv(ADC_CONVERSION_MODE,ADC_DCP,CELL_CH_TO_CONVERT);
   check_error(error); 
   print_cells(DATALOG_DISABLED);
   wakeup_idle(TOTAL_IC);
-  LTC6813_adstat(ADC_CONVERSION_MODE, STAT_CH_TO_CONVERT);
   error = LTC6813_rdstat(SEL_REG_A,TOTAL_IC,BMS_IC); // Set to read back stat register A
   check_error(error);
   print_SUM_OF_CELLS(DATALOG_DISABLED);
